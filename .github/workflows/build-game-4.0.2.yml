@@ -12,6 +12,10 @@ on:
       output_name:
         required: true
         type: string
+      use_main_folder:
+        required: false
+        default: false
+        type: boolean
       debug:
         required: false
         default: false
@@ -63,14 +67,14 @@ jobs:
         run: |
           wget https://raw.githubusercontent.com/gzuidhof/coi-serviceworker/master/coi-serviceworker.min.js -O ./build/coi-serviceworker.min.js
           sed -i 's#</head>#<script src="coi-serviceworker.min.js"></script></head>#' ./build/index.html
-      - if: ${{ inputs.platform == 'Web' && steps.extract_branch.outputs.branch != 'main' }}
+      - if: ${{ inputs.platform == 'Web' && (steps.extract_branch.outputs.branch != 'main' || inputs.use_main_folder) }}
         name: Deploy to GitHub Pages (non-main) 🚀
         uses: JamesIves/github-pages-deploy-action@v4.3.3
         with:
           branch: gh-pages
           folder: build
           target-folder: ${{ steps.extract_branch.outputs.branch }}
-      - if: ${{ inputs.platform == 'Web' && steps.extract_branch.outputs.branch == 'main' }}
+      - if: ${{ inputs.platform == 'Web' && steps.extract_branch.outputs.branch == 'main' && !inputs.use_main_folder }}
         name: Deploy to GitHub Pages (main) 🚀
         uses: JamesIves/github-pages-deploy-action@v4.3.3
         with:
