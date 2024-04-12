@@ -1,0 +1,88 @@
+name: Build game (Godot 4.2.1)
+
+on:
+  workflow_call:
+    inputs:
+      platform:
+        required: true
+        type: string
+      name:
+        required: true
+        type: string
+      output_name:
+        required: true
+        type: string
+      use_main_folder:
+        required: false
+        default: false
+        type: boolean
+      debug:
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  build:
+    name: Build ${{ inputs.name }} for platform ${{ inputs.platform }}
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.2.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          lfs: true
+          submodules: recursive
+      - name: Extract branch name
+        shell: bash
+        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+        id: extract_branch
+      - name: Setup templates
+        run: |
+          mkdir -v -p ~/.local/share/godot/templates
+          ln -sv ~/.local/share/godot/templates ~/.local/share/godot/export_templates
+          mv /root/.local/share/godot/templates/4.2.1.stable ~/.local/share/godot/templates/4.2.1.stable
+          mkdir -v -p ~/.config/godot
+          cp -v /root/.config/godot/editor_settings-4.tres ~/.config/godot/editor_settings-4.tres
+      - name: Build game (release)
+        if: ${{ inputs.debug == false }}
+        run: |
+          mkdir -v -p "build/${{ inputs.platform }}"
+          # Run twice due to a bug in Godot headless
+          godot -v --headless --export-release "${{ inputs.platform }}" "./build/${{ inputs.output_name }}"
+          godot -v --headless --export-release "${{ inputs.platform }}" "./build/${{ inputs.output_name }}"
+      - name: Build game (debug)
+        if: ${{ inputs.debug == true }}
+        run: |
+          mkdir -v -p "build/${{ inputs.platform }}"
+          # Run twice due to a bug in Godot headless
+          godot -v --headless --export-debug "${{ inputs.platform }}" "./build/${{ inputs.output_name }}"
+          godot -v --headless --export-debug "${{ inputs.platform }}" "./build/${{ inputs.output_name }}"
+      - if: ${{ inputs.platform == 'Web' }}
+        name: Install rsync 📚
+        run: |
+          apt-get update && apt-get install -y rsync
+      - if: ${{ inputs.platform == 'Web' }}
+        name: Inject COI script
+        run: |
+          wget https://raw.githubusercontent.com/gzuidhof/coi-serviceworker/master/coi-serviceworker.min.js -O ./build/coi-serviceworker.min.js
+          sed -i 's#</head>#<script src="coi-serviceworker.min.js"></script></head>#' ./build/index.html
+      - if: ${{ inputs.platform == 'Web' && (steps.extract_branch.outputs.branch != 'main' || inputs.use_main_folder) }}
+        name: Deploy to GitHub Pages (non-main) 🚀
+        uses: JamesIves/github-pages-deploy-action@v4.3.3
+        with:
+          branch: gh-pages
+          folder: build
+          target-folder: ${{ steps.extract_branch.outputs.branch }}
+      - if: ${{ inputs.platform == 'Web' && steps.extract_branch.outputs.branch == 'main' && !inputs.use_main_folder }}
+        name: Deploy to GitHub Pages (main) 🚀
+        uses: JamesIves/github-pages-deploy-action@v4.3.3
+        with:
+          branch: gh-pages
+          folder: build
+      - if: ${{ inputs.platform != 'Web' }}
+        name: Upload artifact
+        uses: actions/upload-artifact@v1
+        with:
+          name: ${{ inputs.name }}-${{ steps.extract_branch.outputs.branch }}-${{ inputs.platform }}
+          path: build
