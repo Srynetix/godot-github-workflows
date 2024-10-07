@@ -29,19 +29,20 @@ jobs:
       image: barichello/godot-ci:4.3
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           lfs: true
           submodules: recursive
       - name: Extract branch name
         shell: bash
-        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+        run: echo "branch=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
         id: extract_branch
+      - name: Show branch
+        run: echo "${{ steps.extract_branch.outputs.branch }}"
       - name: Setup templates
         run: |
-          mkdir -v -p ~/.local/share/godot/templates
-          ln -sv ~/.local/share/godot/templates ~/.local/share/godot/export_templates
-          mv /root/.local/share/godot/templates/4.3.stable ~/.local/share/godot/templates/4.3.stable
+          mkdir -v -p ~/.local/share/godot/export_templates
+          mv /root/.local/share/godot/export_templates/4.3.stable ~/.local/share/godot/export_templates/4.3.stable
           mkdir -v -p ~/.config/godot
           cp -v /root/.config/godot/editor_settings-4.tres ~/.config/godot/editor_settings-4.tres
       - name: Build game (release)
@@ -69,20 +70,20 @@ jobs:
           sed -i 's#</head>#<script src="coi-serviceworker.min.js"></script></head>#' ./build/index.html
       - if: ${{ inputs.platform == 'Web' && (steps.extract_branch.outputs.branch != 'main' || inputs.use_main_folder) }}
         name: Deploy to GitHub Pages (non-main) 🚀
-        uses: JamesIves/github-pages-deploy-action@v4.3.3
+        uses: JamesIves/github-pages-deploy-action@v4.6.8
         with:
           branch: gh-pages
           folder: build
           target-folder: ${{ steps.extract_branch.outputs.branch }}
       - if: ${{ inputs.platform == 'Web' && steps.extract_branch.outputs.branch == 'main' && !inputs.use_main_folder }}
         name: Deploy to GitHub Pages (main) 🚀
-        uses: JamesIves/github-pages-deploy-action@v4.3.3
+        uses: JamesIves/github-pages-deploy-action@v4.6.8
         with:
           branch: gh-pages
           folder: build
       - if: ${{ inputs.platform != 'Web' }}
         name: Upload artifact
-        uses: actions/upload-artifact@v1
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.name }}-${{ steps.extract_branch.outputs.branch }}-${{ inputs.platform }}
           path: build
